@@ -78,6 +78,13 @@
    - Settings → Secrets → thêm vào GitHub repo
    - Actions → enable workflow
 
+### Chạy local bằng `.env`
+Tạo file `.env` ở root repo, rồi chạy:
+```bash
+python -m src.bot
+```
+`dotenv` sẽ tự load biến môi trường từ file này.
+
 *Chi tiết: [DEPLOY.md](./DEPLOY.md)*
 
 ## 📁 Cấu trúc
