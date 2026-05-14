@@ -1,18 +1,16 @@
-"""Claude agent with tool-calling for flight and shopping search."""
+"""LLM agent with tool-calling for flight and shopping search."""
 
 from __future__ import annotations
 
-import json
+from datetime import date
 from typing import Any
 
 from anthropic import Anthropic
-from anthropic.types import ToolUseBlock, TextBlock
+from anthropic.types import TextBlock, ToolUseBlock
+from openai import OpenAI
 
 from .config import Config
 from .tools.serpapi import search_flights, search_shopping
-
-
-from datetime import date
 
 TODAY = date.today()  # 2026-05-12
 
@@ -32,9 +30,7 @@ Mặc định cho các câu hỏi mơ hồ về thời gian:
 - "tuần sau" → tuần tiếp theo
 - Nếu không rõ, lấy ngày đi và ngày về hợp lý."""
 
-# ── Tool definitions (Anthropic format) ──────────────────────────────
-
-FLIGHT_TOOL: dict = {
+FLIGHT_TOOL: dict[str, Any] = {
     "name": "search_flights",
     "description": "Tìm chuyến bay. Trả về giá, hãng, giờ bay.",
     "input_schema": {
@@ -65,7 +61,7 @@ FLIGHT_TOOL: dict = {
     },
 }
 
-SHOPPING_TOOL: dict = {
+SHOPPING_TOOL: dict[str, Any] = {
     "name": "search_shopping",
     "description": "Tìm sản phẩm, so sánh giá. Hữu ích khi user hỏi về giá đồ.",
     "input_schema": {
@@ -82,8 +78,6 @@ SHOPPING_TOOL: dict = {
 
 ALL_TOOLS = [FLIGHT_TOOL, SHOPPING_TOOL]
 
-# ── Tool dispatch ────────────────────────────────────────────────────
-
 TOOL_FUNCTIONS: dict[str, Any] = {
     "search_flights": search_flights,
     "search_shopping": search_shopping,
@@ -92,55 +86,93 @@ TOOL_FUNCTIONS: dict[str, Any] = {
 
 class Agent:
     def __init__(self):
-        self.client = Anthropic(api_key=Config.anthropic_api_key)
-        self.model = "claude-sonnet-4-6"
+        self.mode = Config.llm_mode or "anthropic"
         self.system = SYSTEM_PROMPT
-        self.history: list[dict] = []
+        self.history: list[dict[str, str]] = []
+
+        if self.mode == "openai":
+            if not Config.openai_api_key:
+                raise ValueError("OPENAI_API_KEY not set")
+            self.client = OpenAI(
+                api_key=Config.openai_api_key,
+                base_url=Config.openai_base_url or None,
+            )
+            self.model = Config.openai_model or "gemini-2.5-flash"
+        else:
+            if not Config.anthropic_api_key:
+                raise ValueError("ANTHROPIC_API_KEY not set")
+            self.client = Anthropic(api_key=Config.anthropic_api_key)
+            self.model = "claude-sonnet-4-6"
 
     def chat(self, user_message: str) -> str:
-        """Send user message, execute tool calls if needed, return response."""
         messages = list(self.history)
         messages.append({"role": "user", "content": user_message})
 
-        for iteration in range(5):  # max 5 tool call loops
-            response = self._call_claude(messages)
+        for _ in range(5):
+            if self.mode == "openai":
+                response = self._call_openai(messages)
+                reply_text, tool_calls = self._parse_openai_response(response)
+                if not tool_calls:
+                    self._save_history(user_message, reply_text)
+                    return reply_text
 
+                assistant_message = {
+                    "role": "assistant",
+                    "content": reply_text or None,
+                    "tool_calls": tool_calls,
+                }
+                messages.append(assistant_message)
+
+                for tool_call in tool_calls:
+                    result = self._execute_tool_name(
+                        tool_call["function"]["name"],
+                        tool_call["function"]["arguments"],
+                    )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "content": result,
+                        }
+                    )
+                continue
+
+            response = self._call_anthropic(messages)
             content_blocks = response.content
             reply_text = ""
             tool_use_blocks = []
-            text_blocks = []
 
             for block in content_blocks:
                 if isinstance(block, TextBlock):
-                    text_blocks.append(block)
                     reply_text += block.text
                 elif isinstance(block, ToolUseBlock):
                     tool_use_blocks.append(block)
 
             if not tool_use_blocks:
-                # Done — save to history and return
-                self.history.append({"role": "user", "content": user_message})
-                self.history.append({"role": "assistant", "content": reply_text})
+                self._save_history(user_message, reply_text)
                 return reply_text
 
-            # Execute all tools, then append ONE assistant + ONE user with all results
             tool_results = []
             for block in tool_use_blocks:
-                result = self._execute_tool(block)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": str(result),
-                })
+                result = self._execute_tool(block.name, block.input)
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    }
+                )
 
             messages.append({"role": "assistant", "content": content_blocks})
             messages.append({"role": "user", "content": tool_results})
 
-        # Exceeded loop limit
         return "Xin lỗi, em không thể xử lý yêu cầu này ngay bây giờ. Thử lại với câu hỏi đơn giản hơn nhé!"
 
-    def _call_claude(self, messages: list) -> Any:
-        """Make Claude API call with retry on 429."""
+    def _save_history(self, user_message: str, reply_text: str) -> None:
+        self.history.append({"role": "user", "content": user_message})
+        self.history.append({"role": "assistant", "content": reply_text})
+
+    def _call_anthropic(self, messages: list[dict[str, Any]]) -> Any:
         import time
 
         for attempt in range(3):
@@ -155,19 +187,77 @@ class Agent:
             except Exception as exc:
                 err = str(exc)
                 if "429" in err or "rate_limit" in err.lower():
-                    wait = 30 * (attempt + 1)
-                    time.sleep(wait)
+                    time.sleep(30 * (attempt + 1))
                     continue
                 raise
-        raise Exception("Claude API: rate limit exceeded after 3 retries")
+        raise Exception("Anthropic API: rate limit exceeded after 3 retries")
 
-    def _execute_tool(self, block: ToolUseBlock) -> str:
-        """Execute a tool and return the result string."""
-        fn = TOOL_FUNCTIONS.get(block.name)
+    def _call_openai(self, messages: list[dict[str, Any]]) -> Any:
+        import time
+
+        tool_defs = [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "parameters": tool["input_schema"],
+                },
+            }
+            for tool in ALL_TOOLS
+        ]
+
+        for attempt in range(3):
+            try:
+                return self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "system", "content": self.system}] + messages,
+                    tools=tool_defs,
+                    temperature=0.2,
+                )
+            except Exception as exc:
+                err = str(exc)
+                if "429" in err or "rate_limit" in err.lower():
+                    time.sleep(30 * (attempt + 1))
+                    continue
+                raise
+        raise Exception("OpenAI-compatible API: rate limit exceeded after 3 retries")
+
+    def _parse_openai_response(self, response: Any) -> tuple[str, list[dict[str, Any]]]:
+        choice = response.choices[0]
+        message = choice.message
+        reply_text = message.content or ""
+        tool_calls = []
+        for tool_call in getattr(message, "tool_calls", None) or []:
+            tool_calls.append(
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments or "{}",
+                    },
+                }
+            )
+        return reply_text, tool_calls
+
+    def _execute_tool(self, name: str, args: Any) -> str:
+        fn = TOOL_FUNCTIONS.get(name)
         if not fn:
-            return f"Unknown tool: {block.name}"
-        args = {k: v for k, v in block.input.items()}
+            return f"Unknown tool: {name}"
+        if isinstance(args, str):
+            import json
+
+            try:
+                parsed_args = json.loads(args) if args else {}
+            except Exception:
+                parsed_args = {}
+        else:
+            parsed_args = dict(args)
         try:
-            return fn(**args)
+            return fn(**parsed_args)
         except Exception as e:
-            return f"Lỗi khi chạy {block.name}: {e}"
+            return f"Lỗi khi chạy {name}: {e}"
+
+    def _execute_tool_name(self, name: str, args: str) -> str:
+        return self._execute_tool(name, args)

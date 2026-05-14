@@ -14,11 +14,11 @@
 
 | Tính năng | Mô tả | Trạng thái |
 |-----------|-------|------------|
-| 💬 **Chat tự nhiên** | Hỏi "tìm vé SG Đà Nẵng cuối tuần" — Claude hiểu, SerpAPI search | ✅ |
+| 💬 **Chat tự nhiên** | Hỏi "tìm vé SG Đà Nẵng cuối tuần" — LLM hiểu, SerpAPI search | ✅ |
 | ✈️ **Tra cứu chuyến bay** | Giá, hãng, giờ bay real-time từ Google Flights | ✅ |
 | 🛒 **So sánh giá đồ** | Search sản phẩm, so sánh từ nhiều nguồn | ✅ |
 | 🔔 **Daily monitor** | Mỗi sáng check giá các tuyến quen thuộc, gửi alert | ✅ |
-| 🧠 **Context-aware** | Claude nhớ lịch sử chat trong session | ✅ |
+| 🧠 **Context-aware** | LLM nhớ lịch sử chat trong session | ✅ |
 | 🔗 **Affiliate inject** | Tự động thêm affiliate link vào kết quả | ✅ |
 | 🆕 **Shopee cào giá** | *(coming soon)* |
 
@@ -42,9 +42,9 @@
 
 ```
 ┌──────────┐     ┌───────────┐     ┌──────────┐
-│ Telegram │ ←→ │  Claude   │ ←→ │ SerpAPI  │
-│   Bot    │     │ Sonnet 4.6│     │(Flights+ │
-│          │     │(Tool-call)│     │ Shopping)│
+│ Telegram │ ←→ │   LLM     │ ←→ │ SerpAPI  │
+│   Bot    │     │ Anthropic │     │(Flights+ │
+│          │     │ / OpenAI  │     │ Shopping)│
 └──────────┘     └───────────┘     └──────────┘
                        ↕
                  ┌──────────┐
@@ -55,7 +55,7 @@
 ```
 
 - **Telegram Bot** — python-telegram-bot v20+
-- **Claude Sonnet 4.6** — NLU + tool-calling (Anthropic API)
+- **Anthropic or OpenAI-compatible LLM** — NLU + tool-calling
 - **SerpAPI** — Google Flights + Google Shopping (250 free/tháng)
 - **Fly.io** — host 24/7 (free tier)
 - **GitHub Actions** — daily cron monitor (free)
@@ -67,10 +67,11 @@
    - [@BotFather](https://t.me/botfather) → tạo bot → copy token
    - [SerpAPI](https://serpapi.com) → sign up → copy key (500 free/tháng)
    - [Anthropic API](https://console.anthropic.com/settings/keys) → copy key
+   - [Google AI Studio](https://aistudio.google.com/app/apikey) → copy OpenAI-compatible key
 3. **Deploy lên Fly.io**:
    ```bash
    fly launch --from Dockerfile
-   fly secrets set TELEGRAM_TOKEN=xxx ANTHROPIC_API_KEY=xxx SERPAPI_KEY=xxx ALLOWED_USER_ID=xxx
+   fly secrets set TELEGRAM_TOKEN=xxx LLM_MODE=anthropic ANTHROPIC_API_KEY=xxx SERPAPI_KEY=xxx ALLOWED_USER_ID=xxx
    fly deploy
    ```
 4. **Bật monitor**:
@@ -84,7 +85,7 @@
 ```
 src/
 ├── bot.py              # Telegram bot entry point
-├── agents.py           # Claude agent + tool-calling
+├── agents.py           # LLM agent + tool-calling
 ├── config.py           # Env config loader
 └── tools/
     └── serpapi.py      # Flight + shopping search
@@ -98,6 +99,7 @@ src/
 - [x] Shopping price compare
 - [x] Daily price monitor (GitHub Actions)
 - [x] 24/7 Telegram bot (Fly.io)
+- [x] Anthropic / OpenAI-compatible LLM mode switch
 - [ ] Shopee price scraper
 - [ ] Affiliate link injection vào kết quả
 - [ ] Auto-deal: notify khi deal tốt xuất hiện
