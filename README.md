@@ -22,9 +22,10 @@
 | ✈️ **Tìm vé máy bay** | Giá real-time từ Google Flights, top 5 chuyến, link Google Flights | ✅ |
 | 🛒 **So sánh giá sản phẩm** | Google Shopping — giá, rating, shop, link mua trực tiếp | ✅ |
 | 🔔 **Daily price monitor** | 9AM mỗi sáng tự động check giá 4 tuyến SGN↔HAN/DAD/PQC, gửi Telegram | ✅ |
-| 🧠 **Memory trong session** | Claude nhớ toàn bộ lịch sử chat, hỏi tiếp không cần nhắc lại | ✅ |
-| ⚡ **Prompt caching** | Cache system prompt từ turn 2 → tiết kiệm ~90% token cost | ✅ |
-| 🧩 **Adaptive thinking** | Claude tự bật extended thinking khi câu hỏi phức tạp | ✅ |
+| 🧠 **Memory trong session** | LLM nhớ toàn bộ lịch sử chat, hỏi tiếp không cần nhắc lại | ✅ |
+| ⚡ **Prompt caching** | Cache system prompt từ turn 2 → tiết kiệm ~90% token cost (Anthropic) | ✅ |
+| 🧩 **Adaptive thinking** | Claude tự bật extended thinking khi câu hỏi phức tạp (Anthropic) | ✅ |
+| 🔄 **LLM mode switch** | Hỗ trợ Anthropic Claude hoặc OpenAI-compatible (Gemini, local LLM) | ✅ |
 | 🔁 **Multi-turn tool loop** | Một lượt hỏi có thể gọi nhiều tool liên tiếp, tối đa 5 vòng | ✅ |
 | 🔗 **Google Flights link** | Mỗi kết quả vé kèm link tìm thêm trên Google Flights | ✅ |
 | 🛡️ **Private mode** | `ALLOWED_USER_ID` — chỉ bạn mới dùng được bot | ✅ |
@@ -75,11 +76,13 @@
 
 ```
 ┌──────────────┐     ┌──────────────────────────┐     ┌──────────────────┐
-│   Telegram   │ ←→  │     Claude Sonnet 4.6     │ ←→  │     SerpAPI      │
-│     Bot      │     │  · Multi-turn tool loop   │     │  · Google Flights│
-│              │     │  · Prompt caching         │     │  · Google Shopping│
-│  /start      │     │  · Adaptive thinking      │     └──────────────────┘
-│  /reset      │     │  · Session memory         │
+│   Telegram   │ ←→  │      LLM Backend          │ ←→  │     SerpAPI      │
+│     Bot      │     │(Anthropic / OpenAI-compat)│     │  · Google Flights│
+│              │     │  · Multi-turn tool loop   │     │  · Google Shopping│
+│  /start      │     │  · Prompt caching         │     └──────────────────┘
+│  /reset      │     │  · Adaptive thinking      │
+│  /uptime     │     │  · Session memory         │
+└──────────────┘     └──────────────────────────┘
 │  /uptime     │     └──────────────────────────┘
 └──────────────┘
                       ┌──────────────────────────┐
@@ -91,7 +94,7 @@
 
 | Thành phần | Chi tiết |
 |---|---|
-| **AI** | Claude Sonnet 4.6 — Anthropic API |
+| **AI** | Claude Sonnet 4.6 (Anthropic) hoặc OpenAI-compatible (Gemini, ...) |
 | **Bot** | python-telegram-bot v20+ |
 | **Search** | SerpAPI — Google Flights + Google Shopping |
 | **Host** | Fly.io free tier, region Singapore |
@@ -109,7 +112,9 @@
 | `TELEGRAM_TOKEN` | [@BotFather](https://t.me/botfather) → `/newbot` | Không giới hạn |
 | `ALLOWED_USER_ID` | [@userinfobot](https://t.me/userinfobot) → `/start` | — |
 | `TELEGRAM_CHAT_ID` | Giống `ALLOWED_USER_ID` | — |
+| `LLM_MODE` | `anthropic` or `openai` | `anthropic` |
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/settings/keys) | $5 free credit |
+| `OPENAI_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) | Free tier |
 | `SERPAPI_KEY` | [serpapi.com](https://serpapi.com) | 250 req/tháng |
 
 ### 2. Deploy lên Fly.io

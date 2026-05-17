@@ -16,10 +16,19 @@
 - Vào [serpapi.com](https://serpapi.com) → sign up → copy key
 - Free: **250 searches/tháng** (đủ cho bot + daily monitor)
 
+### LLM Mode
+- Chọn `LLM_MODE=anthropic` (Claude) hoặc `LLM_MODE=openai` (OpenAI-compatible)
+- `openai` dùng với Google AI Studio hoặc local LLM endpoint
+
 ### Anthropic API Key
 - Vào [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
 - Create key — model dùng: `claude-sonnet-4-6`
 - Free $5 credit khi đăng ký mới
+
+### Google AI Studio Key (cho OpenAI mode)
+- Vào https://aistudio.google.com/app/apikey
+- Create key
+- Dùng với `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`
 
 ---
 
