@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for tara-bot on 2026-05-11T22:21:12+07:00
+# fly.toml app configuration file generated for ademi1147price on 2026-05-20T08:14:01Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'ademi1147-bot'
+app = 'ademi1147price'
 primary_region = 'sin'
 
 [build]
